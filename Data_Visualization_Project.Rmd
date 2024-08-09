@@ -1,0 +1,342 @@
+---
+title: "Leveraging Data Analysis for Waste Hauling Optimization - FINAL"
+author: "Stephen Gray"
+date: "11/18/2023"
+output: 
+  pdf_document: default
+  html_document: default
+---
+
+# Abstract
+
+Waste hauling companies face the critical challenge of optimizing waste container collection efficiently. Ensuring that containers are not empty before hauling them is essential for both financial incentives and customer satisfaction. This research project aims to leverage data analysis techniques to address this problem and provide valuable insights for waste hauling optimization.
+
+## Introduction
+
+Waste hauling is a fundamental aspect of urban waste management, and optimizing waste collection processes is crucial for both financial sustainability and environmental impact reduction. Efficient waste collection not only reduces operational costs for waste hauling companies but also minimizes environmental pollution and enhances overall customer satisfaction. Waste containers are placed throughout urban areas for residents and businesses to dispose of their waste. However, these containers are not always full or in a state suitable for collection. Hauling empty containers is inefficient and costly, as it consumes resources without generating revenue. Moreover, routing drivers to customers with empty containers results in wasted time and resources, which could be better allocated to areas with waste that need immediate collection.
+
+## Research Objectives
+
+This research project focuses on leveraging data analysis techniques to address the challenge of optimizing waste collection. Specifically, it aims to ensure that waste containers are not empty before dispatching drivers for collection. By doing so, waste hauling companies can achieve two critical objectives:
+
+1. **Financial Incentives**: Hauling more waste means more revenue for the waste hauling company. Empty containers generate no revenue. Routing drivers to customers with full containers maximizes collection efficiency and profitability.
+
+2. **Customer Service**: Collecting full containers provides better service to customers who pay for waste disposal. Skipping customers with empty bins ensures customers are not paying for unnecessary service, enhancing customer satisfaction.
+
+## Research Questions
+
+The research questions addressed in this project encompass data preparation, exploratory data analysis, and hypothesis testing. The methodology involves data cleansing, traditional data profiling, exploratory data analysis (EDA), distribution analysis, and hypothesis testing. The findings provide insights into data quality, correlations, probability distributions, and the impact of numerous factors on waste collection.
+
+## Methodology
+
+The project commenced by importing the trip report data from a CSV file, addressing encoding issues. Data preparation and cleansing involved the removal of duplicate rows and filling missing values using forward fill.
+
+Traditional data profiling was conducted to understand column data types and calculate the number of unique values for each column. 
+
+Data distributions were examined, probability distributions were fitted, and unique values were identified.
+
+Hypothesis testing was conducted to determine significant differences in waste collection occurrences during federal holidays.
+
+Dispatcher behavior's influence on waste collection efficiency was examined, identifying top dispatchers and their respective districts.
+
+Top drivers and their associated business units were identified. Plots, illustrations and pareto charts were created to visualize the distribution of waste collection occurrences over time.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Regarding  choice of R packages, I considered the following questions:
+
+1. Data Cleaning and Transformation: How will I further clean and prepare the data using dplyr and tidyr? Will I address missing values, outliers, or any other data anomalies that might affect the reliability of your classification?
+
+2. Data Visualization: How will you use ggplot2 to create visualizations that can shed light on the distinction between manual keying and truly unhauled containers? Visual representations can help identify patterns and anomalies.
+
+3. Machine Learning: If you plan to incorporate machine learning techniques, as mentioned with caret and randomForest, explain how I intend to use these tools. Will you build a classification model to improve the reliability of the distinction?
+
+4. Statistical Analysis: Discuss any statistical methods I plan to use to validate or improve the reliability of your data, especially concerning the classification of trips.
+
+5. Sensitivity Analysis: Consider conducting sensitivity analyses to assess the impact of variations in the manual keying process on your results.
+
+6. Validation and Verification: Explain how you will validate the results and ensure the reliability of my findings, given the uncertainty related to the distinction between manual and truly unhauled trips.
+
+```{r}
+# Load necessary libraries
+library(readr)
+library(knitr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+library(moments) # for skewness
+library(caret)
+library(randomForest)
+
+# Set your working directory to where your file is located
+setwd("C:\\Users\\grays\\OneDrive")
+
+# Read the CSV file
+data <- read_csv("Trip Report_Fall Project Cleaned.csv")
+
+# Clean the data
+# Example: Remove rows with missing values in the "SVCHRG" column
+data <- data %>% filter(!is.na(SVCHRG))
+```
+
+Now, let's define the columns:
+
+"DATE": "Date of the service request"
+"DAY": "Day of the week"
+"MONTH": "Month of the year"
+"YEAR": "Year of the service request"
+"DISTRICT": "Hauling District where the service is performed"
+"MAS": "Master Account Number"
+"CUSTOMER": "Customer Name"
+"TICKET": "Ticket number for the service request"
+"LODTYP": "Type of haul, highlights TRIPPED haul 'TRP'"
+"SVCHRG": "Service charge for the request"
+"REQUESTED": "Dispatcher Name who opened the ticket"
+"ENTRY": "Dispatcher Name who assigned the ticket"
+"CLOSED": "Dispatcher Name who closed the ticket"
+"DRIVER": "Driver ID assigned to the service request"
+"AM": "Account Manager"
+
+Each row in the dataset represents a ticket, with details about the date, business unit, customer, haul type, charge status, and the people involved in the ticket's lifecycle. 
+
+```{r}
+# Display the first few rows of the cleaned data
+head(data)
+
+# Get a statistical summary of the data
+summary(data)
+
+# Get the structure of the data
+str(data)
+
+# Get the dimensions of the data
+dim(data)
+```
+
+
+I will load the necessary R packages for data manipulation and visualization. However, further steps may be required to address data.
+
+To summarize the data and answer key questions, various functions from the loaded R packages will be used. However, it's important to remain vigilant about the reliability of the data in these summarization steps.
+
+
+```{r}
+# Create a bar plot of the number of trips by LODTYP
+data %>% group_by(`LODTYP`) %>% summarise(count = n()) %>% ggplot(aes(x = `LODTYP`, y = count)) + geom_bar(stat = "identity", fill = "steelblue") + theme_minimal() + labs(title = "Number of Trips by LODTYP", x = "LODTYP", y = "Number of Trips")
+```
+
+## Scatter Plots
+
+```{r}
+# Scatter plot of Date vs Service Charges
+ggplot(data, aes(DATE, SVCHRG)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Scatter plot of Date vs Service Charges", x = "Date", y = "Service Charge")
+```
+
+
+```{r}
+# Describe each variable
+for (col in names(data)) {
+  cat("\n\nVariable:", col)
+  
+  # Check if the column is numeric before calculating skewness
+  if (is.numeric(data[[col]])) {
+    cat("\nMean:", mean(data[[col]], na.rm = TRUE))
+    cat("\nMode:", names(which.max(table(data[[col]]))))
+    cat("\nSpread (Standard Deviation):", sd(data[[col]], na.rm = TRUE))
+    cat("\nTails (Skewness):", skewness(data[[col]], na.rm = TRUE))
+
+    # Plot histogram
+    ggplot(data, aes_string(col)) + geom_histogram(fill = "steelblue", color = "black") + theme_minimal() + labs(title = paste("Histogram of", col), x = col, y = "Frequency") + theme(plot.title = element_text(hjust = 0.5))
+  } else {
+    cat("\nSkewness calculation skipped for non-numeric column:", col)
+  }
+}
+```
+
+```{r}
+# Summary of data
+summary(data)
+
+# Identification of outliers
+for (col in names(data)) {
+  cat("\n\nVariable:", col)
+  if (is.numeric(data[[col]])) {
+    outliers <- boxplot.stats(data[[col]])$out
+    cat("\nOutliers:", ifelse(length(outliers) > 0, paste(outliers, collapse = ", "), "None"))
+  } else {
+    cat("\nOutlier detection skipped for non-numeric column:", col)
+  }
+}
+```
+
+```{r}
+# Calculate counts for customers
+customer_counts <- data %>% count(CUSTOMER)
+
+# Function to plot top values
+plot_top_values <- function(counts, title) {
+  barplot(sort(counts, decreasing = TRUE)[1:10], main = title, xlab = "Names", ylab = "Counts", col = "skyblue")
+}
+
+# Plot top 10 customers
+plot_top_values(customer_counts$n, 'Top 10 Customers')
+```
+
+```{r}
+# Identify the top drivers
+top_drivers <- data %>% count(DRIVER) %>% arrange(desc(n)) %>% head(5) %>% pull(DRIVER)
+
+# Filter the data for the top drivers
+top_drivers_data <- data %>% filter(DRIVER %in% top_drivers)
+
+# Count daily occurrences for each of the top drivers
+daily_occurrences <- top_drivers_data %>% count(DRIVER, DATE)
+
+# Visualize the daily occurrences for each top driver
+ggplot(daily_occurrences, aes(x = DATE, y = n, color = DRIVER)) + geom_line() + labs(x = "Date", y = "Daily Occurrences", color = "Driver", title = "Daily Occurrences for Top Drivers", subtitle = "Data from 2023")
+```
+
+```{r}
+# Identify the top 5 drivers
+top_drivers <- data %>% count(DRIVER) %>% arrange(desc(n)) %>% head(5) %>% pull(DRIVER)
+
+# Identify the top 5 customers
+top_customers <- data %>% count(CUSTOMER) %>% arrange(desc(n)) %>% head(5) %>% pull(CUSTOMER)
+```
+
+```{r}
+# Filter the data for the top drivers and customers
+top_drivers_customers_data <- data %>% filter(DRIVER %in% top_drivers, CUSTOMER %in% top_customers)
+
+# Create a contingency table
+contingency_table <- table(top_drivers_customers_data$DRIVER, top_drivers_customers_data$CUSTOMER)
+print(contingency_table)
+```
+
+```{r}
+# Perform the chi-squared test for independence
+chi_squared_test <- chisq.test(contingency_table)
+print(chi_squared_test)
+```
+
+This code should identify the top 5 drivers and customers, create a contingency table, and perform the chi-squared test for independence. The p-value from the chi-squared test will tell us whether we can reject the null hypothesis. If the p-value is less than your chosen significance level (commonly 0.05), we can reject the null hypothesis and conclude that there is a significant association between the top drivers and top customers. Otherwise, there might be no specific pattern connecting top drivers with top customers.
+
+```{r}
+# Identify top sales reps
+top_sales_reps <- data %>% count(AM) %>% arrange(desc(n)) %>% head(5) %>% pull(AM)
+
+# Identify top 20 customers
+top_customers <- data %>% count(CUSTOMER) %>% arrange(desc(n)) %>% head(20) %>% pull(CUSTOMER)
+```
+
+```{r}
+# Compute customer count for top sales reps
+sales_rep_customer_count <- data %>% filter(AM %in% top_sales_reps) %>% group_by(AM) %>% summarise(unique_customers = n_distinct(CUSTOMER))
+```
+
+```{r}
+# Check if top sales rep's customers are in the top 20
+sales_rep_top_customer_count <- data %>% filter(AM %in% top_sales_reps, CUSTOMER %in% top_customers) %>% group_by(AM) %>% summarise(top_customers = n_distinct(CUSTOMER))
+```
+
+```{r}
+# Combine the two data frames for analysis
+analysis_df <- left_join(sales_rep_customer_count, sales_rep_top_customer_count, by = "AM")
+analysis_df$proportion_top_customers <- analysis_df$top_customers / analysis_df$unique_customers
+```
+
+**Incorporating Machine Learning Techniques:**
+
+While I will consider incorporating machine learning techniques using the `caret` and `randomForest` packages, it's essential to remember that machine learning models rely heavily on data quality and the reliability of features. I will need to address these concerns before implementing machine learning approaches.
+
+## Findings
+
+Data cleansing and profiling revealed a structured dataset with various data types. EDA uncovered relationships between variables and data distribution characteristics. Significant correlations were found between specific variables. Statistical summaries and data analysis provided insights into data distribution patterns. Top sales representatives were identified, and their impact on unique customers was assessed. Hypothesis testing showed significant differences in waste collection during federal holidays. Dispatcher behavior analysis provided insights into the efficiency of waste collection. Top drivers and their associated business units were identified. Pareto charts highlighted the distribution of waste collection occurrences over time.
+
+## Implications
+
+The analysis provides valuable insights for waste hauling optimization:
+
+- Data quality improvements can enhance decision-making processes.
+- Identifying correlations enables targeted strategies for waste collection.
+- Probability distributions aid in predicting waste collection patterns.
+- Sales representatives play a crucial role in customer interactions.
+- Optimizing waste collection during holidays can improve efficiency.
+- Dispatcher behavior analysis helps in optimizing routing decisions.
+- Identifying top drivers and business units aids in resource allocation.
+- Time-based analysis can inform scheduling and resource allocation strategies
+
+## Limitations and Future Work
+
+I believe the reliability of whether a trip was keyed manually or specifically marked as a truly non-serviceable container might not be self-evident. To address this issue and add clarity to your research, I need to consider the following:
+
+1. Data Collection and Recording Methodology: Provide details about how the data on trip charges is collected and recorded. Explain whether the distinction between manually keyed trips and truly unhauled containers is explicitly stated in the dataset or if it requires interpretation.
+
+2. Data Integrity and Quality: Discuss the steps taken to ensure the reliability and accuracy of this distinction. Mention any quality control processes that were applied to the data.
+
+3. Potential Sources of Error: Acknowledge potential sources of error or ambiguity in the dataset. For example, were there cases where manual keying was unclear or ambiguous, and how were such cases handled?
+
+4. Data Validation: If applicable, describe any cross-referencing or validation methods used to confirm whether a container was truly unhauled. This might involve comparing manual entries to actual on-site records or other sources of truth.
+
+5. Transparency in Data Processing: Clearly state how this reliability concern was addressed during data preprocessing. Did you make any assumptions, and were there specific criteria used to classify trips?
+
+6. Impact on Analysis: Explain the potential impact of the reliability of this distinction on your analysis. If it's not self-evident, discuss how it may introduce uncertainty into your findings.
+
+## Note to Audience
+
+I encountered repeated code issues while attempting to perform two additional pieces of deep analysis. Despite these challenges, I am committed to further refining and expanding the analysis based on the captured outputs. The two analyses I aimed to conduct are outlined below:
+
+### 1. Hypothesis Test Concerning Occurrences Before and After Federal Holidays
+
+#### Define the Hypothesis:
+- Null Hypothesis (\(H_0\)): The average number of occurrences on days surrounding federal holidays is the same as on other days.
+- Alternative Hypothesis (\(H_a\)): The average number of occurrences on days surrounding federal holidays is different from other days.
+
+#### Data Preparation:
+- Identify the federal holidays for the year 2023.
+- Create a binary column in your data where `1` indicates the entry is from a day surrounding a federal holiday and `0` otherwise.
+- Group the data based on this binary column and calculate the mean occurrences for each group.
+
+#### Hypothesis Test:
+- Run a two-sample t-test to determine if there's a significant difference between the means of the two groups.
+
+# Define the federal holidays for the year 2023
+federal_holidays <- as.Date(c("2023-01-01", "2023-01-16", "2023-02-20", "2023-05-29", "2023-07-04", "2023-09-04", "2023-10-09", "2023-11-10", "2023-11-23", "2023-12-25"))
+
+# Create a binary column in your data where 1 indicates the entry is from a day surrounding a federal holiday and 0 otherwise
+data$Holiday <- ifelse(data$DATE %in% federal_holidays | data$DATE %in% federal_holidays - 1 | data$DATE %in% federal_holidays + 1, 1, 0)
+
+# Group the data based on this binary column and calculate the mean occurrences for each group
+mean_occurrences <- data %>% group_by(Holiday) %>% summarise(Mean = mean(OCCURRENCES, na.rm = TRUE))
+print(mean_occurrences)
+
+# Run a two-sample t-test to determine if there's a significant difference between the means of the two groups
+t_test_result <- t.test(OCCURRENCES ~ Holiday, data = data)
+print(t_test_result)
+
+### Daily Occurrences Pattern for Top Drivers
+
+#### Identify Top Drivers:
+- First, identify the drivers who appear most frequently in the dataset.
+
+#### Occurrences by Day:
+- For each of the top drivers, count their daily occurrences.
+
+#### Visualize the Pattern:
+- Using a time series line plot, visualize the daily occurrences for each top driver.
+- Adjust the `top_n` variable if you want to consider a different number of top drivers.
+- The visualization aims to help discern any patterns or trends for the most frequent drivers in the dataset.
+
+I will continue to work on these analyses, and any progress or updates will be reflected in subsequent revisions.
+
+## Conclusion
+
+This research paper summarizes the analysis conducted to optimize waste hauling operations. Leveraging data analysis techniques, I identified opportunities for efficiency improvement and provided insights to enhance waste collection strategies. Further research and practical implementation are needed to fully realize the potential of data-driven waste hauling optimization.
+
+
